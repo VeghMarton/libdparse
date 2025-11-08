@@ -628,7 +628,7 @@ public struct DLexer
      *     haveSSE42 = Parse streaming SIMD Extensions 4.2 in inline assembly
      */
     this(R)(R range, const LexerConfig config, StringCache* cache,
-        bool haveSSE42 = sse42()) pure nothrow @safe
+        bool haveSSE42 = !__ctfe && sse42) pure nothrow @safe
     if (is(Unqual!(ElementEncodingType!R) : ubyte) && isDynamicArray!R)
     {
         this.haveSSE42 = haveSSE42;
@@ -2043,7 +2043,7 @@ private pure nothrow @safe:
         }
     }
 
-    void lexLongNewline(ref Token token) @nogc
+    void lexLongNewline(ref Token token)
     {
         mixin (tokenStart);
         range.popFront();
@@ -2225,7 +2225,7 @@ unittest
  */
 struct StringCache
 {
-public pure nothrow @nogc:
+public pure nothrow:
 
     @disable this();
     @disable this(this);
@@ -2234,7 +2234,7 @@ public pure nothrow @nogc:
      * Params: bucketCount = the initial number of buckets. Must be a
      * power of two
      */
-    this(size_t bucketCount) nothrow @trusted @nogc
+    this(size_t bucketCount) nothrow @trusted
     in
     {
         import core.bitop : popcnt;
@@ -2252,33 +2252,33 @@ public pure nothrow @nogc:
     }
     do
     {
-        buckets = (cast(Node**) calloc((Node*).sizeof, bucketCount))[0 .. bucketCount];
+        buckets = new Node*[bucketCount];
     }
 
     ~this()
     {
-        Block* current = rootBlock;
-        while (current !is null)
-        {
-            Block* prev = current;
-            current = current.next;
-            free(cast(void*) prev);
-        }
-        foreach (nodePointer; buckets)
-        {
-            Node* currentNode = nodePointer;
-            while (currentNode !is null)
-            {
-                if (currentNode.mallocated)
-                    free(currentNode.str.ptr);
-                Node* prev = currentNode;
-                currentNode = currentNode.next;
-                free(prev);
-            }
-        }
-        rootBlock = null;
-        free(buckets.ptr);
-        buckets = null;
+        // Block* current = rootBlock;
+        // while (current !is null)
+        // {
+        //     Block* prev = current;
+        //     current = current.next;
+        //     free(cast(void*) prev);
+        // }
+        // foreach (nodePointer; buckets)
+        // {
+        //     Node* currentNode = nodePointer;
+        //     while (currentNode !is null)
+        //     {
+        //         if (currentNode.mallocated)
+        //             free(currentNode.str.ptr);
+        //         Node* prev = currentNode;
+        //         currentNode = currentNode.next;
+        //         free(prev);
+        //     }
+        // }
+        // rootBlock = null;
+        // free(buckets.ptr);
+        // buckets = null;
     }
 
     /**
@@ -2316,11 +2316,11 @@ private:
         ubyte[] mem = void;
         bool mallocated = bytes.length > BIG_STRING;
         if (mallocated)
-            mem = (cast(ubyte*) malloc(bytes.length))[0 .. bytes.length];
+            mem = new ubyte[bytes.length];
         else
             mem = allocate(bytes.length);
         mem[] = bytes[];
-        Node* node = cast(Node*) malloc(Node.sizeof);
+        Node* node = new Node;
         node.str = mem;
         node.hash = hash;
         node.next = buckets[index];
@@ -2343,7 +2343,7 @@ private:
         return node;
     }
 
-    static uint hashBytes(const(ubyte)[] data) pure nothrow @trusted @nogc
+    static uint hashBytes(const(ubyte)[] data) pure nothrow @trusted
     in
     {
         assert (data !is null);
@@ -2388,7 +2388,7 @@ private:
         return h;
     }
 
-    ubyte[] allocate(size_t numBytes) pure nothrow @trusted @nogc
+    ubyte[] allocate(size_t numBytes) pure nothrow @trusted
     in
     {
         assert (numBytes != 0);
@@ -2414,7 +2414,7 @@ private:
             i++;
             r = r.next;
         }
-        Block* b = cast(Block*) calloc(Block.sizeof, 1);
+        Block* b = new Block;
         b.used = numBytes;
         b.next = rootBlock;
         rootBlock = b;
@@ -2449,9 +2449,9 @@ private:
     Block* rootBlock;
 }
 
-private extern(C) void* calloc(size_t, size_t) nothrow pure @nogc @trusted;
-private extern(C) void* malloc(size_t) nothrow pure @nogc @trusted;
-private extern(C) void free(void*) nothrow pure @nogc @trusted;
+// private extern(C) void* calloc(size_t, size_t) nothrow pure @nogc @trusted;
+// private extern(C) void* malloc(size_t) nothrow pure @nogc @trusted;
+// private extern(C) void free(void*) nothrow pure @nogc @trusted;
 
 unittest
 {
@@ -2535,7 +2535,7 @@ version (X86_64)
         private enum useDMDStyle = false; // not supported by GDC
 
     private ulong pcmpestri(ubyte flags, chars...)(const ubyte* bytes) pure nothrow
-        @trusted @nogc if (chars.length <= 8)
+        @trusted if (chars.length <= 8)
     {
         enum constant = ByteCombine!chars;
         enum charsLength = chars.length;
@@ -2932,4 +2932,17 @@ unittest
              == "SSS......$(iiiii)E", test(`iq{I {} $$(money)}`));
 
     // dfmt on
+}
+
+unittest
+{
+    import std;
+    enum T = q{
+        auto u;
+        int l;
+        float pi = 3.14;
+        string s = "hello world";
+    }.byToken.array.splitter!((a) => a == tok!";").map!(a => a.to!string).join(";\n");
+
+    T.writeln;
 }
