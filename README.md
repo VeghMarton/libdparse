@@ -1,3 +1,5 @@
+(Do not use this fork!!! it's a quick hack to get libdparse to work with CTFE. @nogc is discarded from a few functions. As of now only the Lexer is CTFE compatible)
+
 libdparse
 =========
 Library for lexing and parsing D source code.
